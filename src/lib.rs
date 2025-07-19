@@ -42,6 +42,15 @@ impl FileSystem {
         })
     }
 
+    /// Return a human-readable summary of the filesystem
+    ///
+    /// This includes block size, inode count, volume name, etc.
+    pub fn summary(&self) -> String {
+        self.superblock.summary()
+    }
+}
+
+impl FileSystem {
     /// Read and parse an inode by its number
     ///
     /// # Arguments
@@ -75,13 +84,6 @@ impl FileSystem {
         self.device.read_exact(&mut buf)?;
 
         Ok(Inode::parse(&buf))
-    }
-
-    /// Return a human-readable summary of the filesystem
-    ///
-    /// This includes block size, inode count, volume name, etc.
-    pub fn summary(&self) -> String {
-        self.superblock.summary()
     }
 
     /// Read a block group descriptor by index
@@ -140,10 +142,14 @@ impl FileSystem {
         let block_size = self.superblock.block_size() as usize;
         let mut entries = Vec::new();
 
+        println!("Reading inode: {}", inode_num);
+        println!("Block size: {}", block_size);
+        println!("Block pointers: {:?}", inode.block_ptrs);
+
         // Process each data block pointed to by the inode
         for &block in &inode.block_ptrs {
             // Skip unallocated blocks
-            if block == 0 {
+            if block == 0 || block > 8192 {
                 continue;
             }
 
@@ -169,5 +175,44 @@ impl FileSystem {
         }
 
         Ok(entries)
+    }
+
+    fn resolve_path(&mut self, path: &str) -> std::io::Result<Inode> {
+        // Start at root inode (inode number 2)
+        let mut current_inode_num = 2;
+
+        // Handle root path directly
+        if path == "/" {
+            return self.read_inode(current_inode_num);
+        }
+
+        for component in path.split('/').filter(|s| !s.is_empty()) {
+            println!("Resolving component: {}", component);
+            let entries = self.read_dir(current_inode_num)?;
+
+            let next_entry = entries
+                .into_iter()
+                .find(|e| e.name == component)
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("Component '{}' not found", component),
+                    )
+                })?;
+
+            current_inode_num = next_entry.inode;
+        }
+
+        self.read_inode(current_inode_num)
+    }
+}
+
+#[test]
+fn test_root_directory_listing() {
+    let mut fs = FileSystem::open("ext4.img").unwrap();
+    println!("Filesystem summary:\n{}", fs.summary());
+    let entries = fs.read_dir(2).unwrap(); // inode 2 is the root directory
+    for entry in entries {
+        println!("{:?}", entry);
     }
 }

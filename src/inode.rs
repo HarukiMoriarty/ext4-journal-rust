@@ -4,7 +4,7 @@ use std::io::Cursor;
 /// Offsets within the ext4 inode structure
 const OFFSET_MODE: u64 = 0x00;
 const OFFSET_SIZE: u64 = 0x04;
-const OFFSET_BLOCK: u64 = 0x28;
+const OFFSET_BLOCK: u64 = 0x3c;
 const NUM_BLOCK_POINTERS: usize = 15;
 
 /// Represents a minimal ext4 inode with mode, size, and block pointers.
@@ -40,6 +40,14 @@ impl Inode {
         let mut block_ptrs = [0u32; NUM_BLOCK_POINTERS];
         for i in 0..NUM_BLOCK_POINTERS {
             block_ptrs[i] = rdr.read_u32::<LittleEndian>().unwrap();
+        }
+
+        println!("Parsed inode:");
+        println!("  Mode: 0x{:04x}", mode);
+        println!("  Size: {}", size);
+        println!("  Block pointers:");
+        for (i, ptr) in block_ptrs.iter().enumerate() {
+            println!("    [{}] {}", i, ptr);
         }
 
         Self {
