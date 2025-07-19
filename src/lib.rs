@@ -41,12 +41,11 @@ impl FileSystem {
             superblock: sb,
         })
     }
+}
 
-    /// Return a human-readable summary of the filesystem
-    ///
-    /// This includes block size, inode count, volume name, etc.
-    pub fn summary(&self) -> String {
-        self.superblock.summary()
+impl std::fmt::Display for FileSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.superblock)
     }
 }
 
@@ -132,7 +131,7 @@ impl FileSystem {
         let inode = self.read_inode(inode_num)?;
 
         // Check if inode is a directory (mode & 0xF000 == 0x4000)
-        if (inode.mode & 0xF000) != 0x4000 {
+        if (inode.inode_mode & 0xF000) != 0x4000 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!("Inode {} is not a directory", inode_num),
@@ -143,11 +142,9 @@ impl FileSystem {
         let mut entries = Vec::new();
 
         println!("Reading inode: {}", inode_num);
-        println!("Block size: {}", block_size);
-        println!("Block pointers: {:?}", inode.block_ptrs);
 
         // Process each data block pointed to by the inode
-        for &block in &inode.block_ptrs {
+        for &block in &inode.extent_blocks {
             // Skip unallocated blocks
             if block == 0 || block > 8192 {
                 continue;
@@ -174,6 +171,8 @@ impl FileSystem {
             }
         }
 
+        println!("entries: {:?}", entries);
+
         Ok(entries)
     }
 
@@ -187,7 +186,6 @@ impl FileSystem {
         }
 
         for component in path.split('/').filter(|s| !s.is_empty()) {
-            println!("Resolving component: {}", component);
             let entries = self.read_dir(current_inode_num)?;
 
             let next_entry = entries
@@ -208,11 +206,9 @@ impl FileSystem {
 }
 
 #[test]
-fn test_root_directory_listing() {
-    let mut fs = FileSystem::open("ext4.img").unwrap();
-    println!("Filesystem summary:\n{}", fs.summary());
-    let entries = fs.read_dir(2).unwrap(); // inode 2 is the root directory
-    for entry in entries {
-        println!("{:?}", entry);
-    }
+fn test_resolve_path() {
+    let mut fs = FileSystem::open("ext4.img").expect("Failed to open image");
+    let inode = fs
+        .resolve_path("/home/zyu379/test_file.txt")
+        .expect("Path not resolved");
 }

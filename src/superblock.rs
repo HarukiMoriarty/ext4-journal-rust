@@ -2,13 +2,13 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Read};
 
 /// Fixed offsets for superblock fields
-const OFFSET_INODES_COUNT: u64 = 0x00; // Total inodes count
-const OFFSET_BLOCKS_COUNT: u64 = 0x04; // Total blocks count
-const OFFSET_LOG_BLOCK_SIZE: u64 = 0x18; // Log2 of block size
-const OFFSET_INODES_PER_GROUP: u64 = 0x28; // Number of inodes per block group
-const OFFSET_INODE_SIZE: u64 = 0x58; // Size of inode structure
-const OFFSET_VOLUME_NAME: u64 = 0x78; // Volume name/label
-const VOLUME_NAME_LENGTH: usize = 16; // Maximum volume name length
+const SUPERBLOCK_OFFSET_INODES_COUNT: u64 = 0x00; // Total inodes count
+const SUPERBLOCK_OFFSET_BLOCKS_COUNT: u64 = 0x04; // Total blocks count
+const SUPERBLOCK_OFFSET_LOG_BLOCK_SIZE: u64 = 0x18; // Log2 of block size
+const SUPERBLOCK_OFFSET_INODES_PER_GROUP: u64 = 0x28; // Number of inodes per block group
+const SUPERBLOCK_OFFSET_INODE_SIZE: u64 = 0x58; // Size of inode structure
+const SUPERBLOCK_OFFSET_VOLUME_NAME: u64 = 0x78; // Volume name/label
+const SUPERBLOCK_VOLUME_NAME_LENGTH: usize = 16; // Maximum volume name length
 
 /// Represents the ext4 superblock structure
 ///
@@ -60,38 +60,38 @@ impl Superblock {
         let mut reader = Cursor::new(buf);
 
         // Read total inodes count (4 bytes at offset 0x00)
-        reader.set_position(OFFSET_INODES_COUNT);
+        reader.set_position(SUPERBLOCK_OFFSET_INODES_COUNT);
         let inodes_count = reader
             .read_u32::<LittleEndian>()
             .expect("Failed to read inodes count");
 
         // Read total blocks count (4 bytes at offset 0x04)
-        reader.set_position(OFFSET_BLOCKS_COUNT);
+        reader.set_position(SUPERBLOCK_OFFSET_BLOCKS_COUNT);
         let blocks_count = reader
             .read_u32::<LittleEndian>()
             .expect("Failed to read blocks count");
 
         // Read log block size (4 bytes at offset 0x18)
-        reader.set_position(OFFSET_LOG_BLOCK_SIZE);
+        reader.set_position(SUPERBLOCK_OFFSET_LOG_BLOCK_SIZE);
         let log_block_size = reader
             .read_u32::<LittleEndian>()
             .expect("Failed to read log block size");
 
         // Read inodes per group (4 bytes at offset 0x28)
-        reader.set_position(OFFSET_INODES_PER_GROUP);
+        reader.set_position(SUPERBLOCK_OFFSET_INODES_PER_GROUP);
         let inodes_per_group = reader
             .read_u32::<LittleEndian>()
             .expect("Failed to read inodes per group");
 
         // Read inode size (2 bytes at offset 0x58)
-        reader.set_position(OFFSET_INODE_SIZE);
+        reader.set_position(SUPERBLOCK_OFFSET_INODE_SIZE);
         let inode_size = reader
             .read_u16::<LittleEndian>()
             .expect("Failed to read inode size");
 
         // Read volume name (16 bytes at offset 0x78)
-        reader.set_position(OFFSET_VOLUME_NAME);
-        let mut name_buffer = [0u8; VOLUME_NAME_LENGTH];
+        reader.set_position(SUPERBLOCK_OFFSET_VOLUME_NAME);
+        let mut name_buffer = [0u8; SUPERBLOCK_VOLUME_NAME_LENGTH];
         reader
             .read_exact(&mut name_buffer)
             .expect("Failed to read volume name");
@@ -118,14 +118,13 @@ impl Superblock {
     pub(crate) fn block_size(&self) -> u32 {
         1024 << self.log_block_size
     }
+}
 
-    /// Get a human-readable summary of the filesystem
-    ///
-    /// # Returns
-    /// A formatted string with key filesystem information
-    pub(crate) fn summary(&self) -> String {
-        format!(
-            "Filesystem '{}': {} inodes ({} per group), {} blocks ({} bytes each), inode size: {} bytes",
+impl std::fmt::Display for Superblock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EXT4 Filesystem '{}': {} inodes ({} per group), {} blocks ({} bytes each), inode size: {} bytes",
             self.volume_name,
             self.inodes_count,
             self.inodes_per_group,
