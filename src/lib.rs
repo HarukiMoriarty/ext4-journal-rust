@@ -1,8 +1,10 @@
+mod dir;
 mod group;
 mod image;
 mod inode;
 mod superblock;
 
+use crate::dir::DirectoryEntry;
 use crate::group::GroupDescriptor;
 use crate::image::read_block;
 use crate::inode::Inode;
@@ -108,5 +110,64 @@ impl FileSystem {
         self.device.read_exact(&mut buf)?;
 
         Ok(GroupDescriptor::parse(&buf))
+    }
+
+    /// Read and parse all directory entries from a directory inode
+    ///
+    /// # Arguments
+    /// * `inode_num` - Inode number of the directory to read
+    ///
+    /// # Returns
+    /// Vector of all directory entries found in the directory
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Inode cannot be read
+    /// - Inode is not a directory
+    /// - Block reading fails
+    fn read_dir(&mut self, inode_num: u32) -> std::io::Result<Vec<DirectoryEntry>> {
+        // Read the inode to get block pointers and verify it's a directory
+        let inode = self.read_inode(inode_num)?;
+
+        // Check if inode is a directory (mode & 0xF000 == 0x4000)
+        if (inode.mode & 0xF000) != 0x4000 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Inode {} is not a directory", inode_num),
+            ));
+        }
+
+        let block_size = self.superblock.block_size() as usize;
+        let mut entries = Vec::new();
+
+        // Process each data block pointed to by the inode
+        for &block in &inode.block_ptrs {
+            // Skip unallocated blocks
+            if block == 0 {
+                continue;
+            }
+
+            // Read the entire block containing directory entries
+            let offset = block as u64 * block_size as u64;
+            self.device.seek(SeekFrom::Start(offset))?;
+            let mut buf = vec![0u8; block_size];
+            self.device.read_exact(&mut buf)?;
+
+            // Parse directory entries sequentially within the block
+            let mut cursor = 0;
+            while cursor < block_size {
+                let remaining_buf = &buf[cursor..];
+
+                match DirectoryEntry::parse(remaining_buf) {
+                    Some((entry, rec_len)) => {
+                        entries.push(entry);
+                        cursor += rec_len;
+                    }
+                    None => break, // Invalid or end of entries
+                }
+            }
+        }
+
+        Ok(entries)
     }
 }

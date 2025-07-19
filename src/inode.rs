@@ -16,7 +16,7 @@ pub(crate) struct Inode {
     /// Total file size in bytes
     pub(crate) size: u32,
     /// Block pointers: 12 direct, 1 singly indirect, 1 doubly, 1 triply
-    pub(crate) block: [u32; NUM_BLOCK_POINTERS],
+    pub(crate) block_ptrs: [u32; NUM_BLOCK_POINTERS],
 }
 
 impl Inode {
@@ -37,11 +37,15 @@ impl Inode {
         let size = rdr.read_u32::<LittleEndian>().unwrap();
 
         rdr.set_position(OFFSET_BLOCK);
-        let mut block = [0u32; NUM_BLOCK_POINTERS];
+        let mut block_ptrs = [0u32; NUM_BLOCK_POINTERS];
         for i in 0..NUM_BLOCK_POINTERS {
-            block[i] = rdr.read_u32::<LittleEndian>().unwrap();
+            block_ptrs[i] = rdr.read_u32::<LittleEndian>().unwrap();
         }
 
-        Self { mode, size, block }
+        Self {
+            mode,
+            size,
+            block_ptrs,
+        }
     }
 }
