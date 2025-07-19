@@ -10,13 +10,13 @@ const NUM_BLOCK_POINTERS: usize = 15;
 /// Represents a minimal ext4 inode with mode, size, and block pointers.
 /// The block pointers are logical block numbers used to locate file data.
 #[derive(Debug)]
-pub struct Inode {
+pub(crate) struct Inode {
     /// File type and permissions
-    pub mode: u16,
+    pub(crate) mode: u16,
     /// Total file size in bytes
-    pub size: u32,
+    pub(crate) size: u32,
     /// Block pointers: 12 direct, 1 singly indirect, 1 doubly, 1 triply
-    pub block: [u32; NUM_BLOCK_POINTERS],
+    pub(crate) block: [u32; NUM_BLOCK_POINTERS],
 }
 
 impl Inode {
@@ -27,7 +27,7 @@ impl Inode {
     ///
     /// # Returns
     /// Parsed `Inode` struct
-    pub fn parse(buf: &[u8]) -> Self {
+    pub(crate) fn parse(buf: &[u8]) -> Self {
         let mut rdr = Cursor::new(buf);
 
         rdr.set_position(OFFSET_MODE);

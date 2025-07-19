@@ -17,20 +17,7 @@ use std::io::{Read, Seek, SeekFrom};
 /// * The file seek operation fails (e.g., invalid offset)
 /// * The file read operation fails (e.g., unexpected EOF, permission issues)
 /// * The file doesn't contain enough data to read the requested size
-///
-/// # Examples
-/// ```rust
-/// use std::fs::File;
-///
-/// let mut file = File::open("filesystem.img")?;
-///
-/// // Read the first 1024 bytes (typical superblock size)
-/// let superblock_data = read_block(&mut file, 1024, 1024)?;
-///
-/// // Read a 4KB block at offset 8192
-/// let block_data = read_block(&mut file, 8192, 4096)?;
-/// ```
-pub fn read_block(file: &mut File, offset: u64, size: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_block(file: &mut File, offset: u64, size: usize) -> std::io::Result<Vec<u8>> {
     // Allocate buffer with the requested size
     let mut buf = vec![0u8; size];
 

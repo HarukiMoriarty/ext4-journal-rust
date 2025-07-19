@@ -16,7 +16,7 @@ pub struct FileSystem {
     /// File handle to the filesystem image or device
     device: File,
     /// Parsed superblock containing filesystem metadata
-    pub superblock: Superblock,
+    superblock: Superblock,
 }
 
 impl FileSystem {
@@ -47,7 +47,7 @@ impl FileSystem {
     ///
     /// # Returns
     /// Parsed Inode structure
-    pub fn read_inode(&mut self, inode_num: u32) -> std::io::Result<Inode> {
+    fn read_inode(&mut self, inode_num: u32) -> std::io::Result<Inode> {
         let block_size = self.superblock.block_size() as u64;
         let inode_size = self.superblock.inode_size as u64;
         let inodes_per_group = self.superblock.inodes_per_group;
@@ -73,6 +73,13 @@ impl FileSystem {
         self.device.read_exact(&mut buf)?;
 
         Ok(Inode::parse(&buf))
+    }
+
+    /// Return a human-readable summary of the filesystem
+    ///
+    /// This includes block size, inode count, volume name, etc.
+    pub fn summary(&self) -> String {
+        self.superblock.summary()
     }
 
     /// Read a block group descriptor by index

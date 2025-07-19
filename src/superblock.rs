@@ -16,12 +16,12 @@ const VOLUME_NAME_LENGTH: usize = 16; // Maximum volume name length
 /// including layout information, feature flags, and filesystem parameters.
 /// It is typically located at byte offset 1024 in the filesystem.
 #[derive(Debug, Clone)]
-pub struct Superblock {
+pub(crate) struct Superblock {
     /// Total number of inodes in the filesystem
-    pub inodes_count: u32,
+    pub(crate) inodes_count: u32,
 
     /// Total number of blocks in the filesystem
-    pub blocks_count: u32,
+    pub(crate) blocks_count: u32,
 
     /// Log base 2 of the block size
     ///
@@ -29,18 +29,18 @@ pub struct Superblock {
     /// - log_block_size = 0 → 1024 bytes
     /// - log_block_size = 1 → 2048 bytes  
     /// - log_block_size = 2 → 4096 bytes
-    pub log_block_size: u32,
+    pub(crate) log_block_size: u32,
 
     /// Number of inodes per group
-    pub inodes_per_group: u32,
+    pub(crate) inodes_per_group: u32,
 
     /// Size of each inode structure in bytes
-    pub inode_size: u16,
+    pub(crate) inode_size: u16,
 
     /// Volume name/label (up to 16 characters)
     ///
     /// Human-readable name for the filesystem, null-terminated
-    pub volume_name: String,
+    pub(crate) volume_name: String,
 }
 
 impl Superblock {
@@ -56,17 +56,7 @@ impl Superblock {
     /// This function will panic if:
     /// - The buffer is too small to contain the required fields
     /// - Any read operation fails (should not happen with valid input)
-    ///
-    /// # Examples
-    /// ```rust
-    /// // Read superblock from a filesystem image
-    /// let superblock_data = read_block(&mut file, 1024, 1024)?;
-    /// let superblock = Superblock::parse(&superblock_data);
-    /// println!("Volume: {}, Block size: {} bytes",
-    ///          superblock.volume_name,
-    ///          superblock.block_size());
-    /// ```
-    pub fn parse(buf: &[u8]) -> Self {
+    pub(crate) fn parse(buf: &[u8]) -> Self {
         let mut reader = Cursor::new(buf);
 
         // Read total inodes count (4 bytes at offset 0x00)
@@ -125,18 +115,7 @@ impl Superblock {
     ///
     /// # Returns
     /// Block size in bytes, calculated as 1024 * 2^log_block_size
-    ///
-    /// # Examples
-    /// ```rust
-    /// let superblock = Superblock::parse(&data);
-    /// match superblock.log_block_size {
-    ///     0 => assert_eq!(superblock.block_size(), 1024),  // 1KB
-    ///     1 => assert_eq!(superblock.block_size(), 2048),  // 2KB
-    ///     2 => assert_eq!(superblock.block_size(), 4096),  // 4KB
-    ///     _ => println!("Larger block size: {} bytes", superblock.block_size()),
-    /// }
-    /// ```
-    pub fn block_size(&self) -> u32 {
+    pub(crate) fn block_size(&self) -> u32 {
         1024 << self.log_block_size
     }
 
@@ -144,7 +123,7 @@ impl Superblock {
     ///
     /// # Returns
     /// A formatted string with key filesystem information
-    pub fn summary(&self) -> String {
+    pub(crate) fn summary(&self) -> String {
         format!(
             "Filesystem '{}': {} inodes ({} per group), {} blocks ({} bytes each), inode size: {} bytes",
             self.volume_name,
