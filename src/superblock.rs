@@ -1,20 +1,45 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor, Read};
 
-/// Represents the superblock structure of this ext4 filesystem
-/// The superblock contains metadata about the filesystem including
-/// the number of inodes, blocks, and other configuration parameters
-#[derive(Debug)]
+/// Fixed offsets for superblock fields
+const OFFSET_INODES_COUNT: u64 = 0x00; // Total inodes count
+const OFFSET_BLOCKS_COUNT: u64 = 0x04; // Total blocks count
+const OFFSET_LOG_BLOCK_SIZE: u64 = 0x18; // Log2 of block size
+const OFFSET_INODES_PER_GROUP: u64 = 0x28; // Number of inodes per block group
+const OFFSET_INODE_SIZE: u64 = 0x58; // Size of inode structure
+const OFFSET_VOLUME_NAME: u64 = 0x78; // Volume name/label
+const VOLUME_NAME_LENGTH: usize = 16; // Maximum volume name length
+
+/// Represents the ext4 superblock structure
+///
+/// The superblock contains critical metadata about the entire filesystem,
+/// including layout information, feature flags, and filesystem parameters.
+/// It is typically located at byte offset 1024 in the filesystem.
+#[derive(Debug, Clone)]
 pub struct Superblock {
     /// Total number of inodes in the filesystem
     pub inodes_count: u32,
+
     /// Total number of blocks in the filesystem
     pub blocks_count: u32,
-    /// Log base 2 of the block size (block_size = 1024 << log_block_size)
+
+    /// Log base 2 of the block size
+    ///
+    /// The actual block size is calculated as: 1024 << log_block_size
+    /// - log_block_size = 0 → 1024 bytes
+    /// - log_block_size = 1 → 2048 bytes  
+    /// - log_block_size = 2 → 4096 bytes
     pub log_block_size: u32,
+
+    /// Number of inodes per group
+    pub inodes_per_group: u32,
+
     /// Size of each inode structure in bytes
     pub inode_size: u16,
+
     /// Volume name/label (up to 16 characters)
+    ///
+    /// Human-readable name for the filesystem, null-terminated
     pub volume_name: String,
 }
 
@@ -22,40 +47,67 @@ impl Superblock {
     /// Parse a superblock from a byte buffer
     ///
     /// # Arguments
-    /// * `buf` - Byte buffer containing the superblock data
+    /// * `buf` - Byte buffer containing the superblock data (minimum 1024 bytes)
     ///
     /// # Returns
-    /// A new Superblock instance with parsed values
+    /// A new `Superblock` instance with parsed values
     ///
     /// # Panics
-    /// This function will panic if the buffer is too small or if reading fails
+    /// This function will panic if:
+    /// - The buffer is too small to contain the required fields
+    /// - Any read operation fails (should not happen with valid input)
+    ///
+    /// # Examples
+    /// ```rust
+    /// // Read superblock from a filesystem image
+    /// let superblock_data = read_block(&mut file, 1024, 1024)?;
+    /// let superblock = Superblock::parse(&superblock_data);
+    /// println!("Volume: {}, Block size: {} bytes",
+    ///          superblock.volume_name,
+    ///          superblock.block_size());
+    /// ```
     pub fn parse(buf: &[u8]) -> Self {
-        let mut rdr = Cursor::new(buf);
+        let mut reader = Cursor::new(buf);
 
-        // Start reading from the beginning of the buffer
-        rdr.set_position(0);
+        // Read total inodes count (4 bytes at offset 0x00)
+        reader.set_position(OFFSET_INODES_COUNT);
+        let inodes_count = reader
+            .read_u32::<LittleEndian>()
+            .expect("Failed to read inodes count");
 
-        // Read inodes count (offset 0x00, 4 bytes)
-        let inodes_count = rdr.read_u32::<LittleEndian>().unwrap();
+        // Read total blocks count (4 bytes at offset 0x04)
+        reader.set_position(OFFSET_BLOCKS_COUNT);
+        let blocks_count = reader
+            .read_u32::<LittleEndian>()
+            .expect("Failed to read blocks count");
 
-        // Read blocks count (offset 0x04, 4 bytes)
-        let blocks_count = rdr.read_u32::<LittleEndian>().unwrap();
+        // Read log block size (4 bytes at offset 0x18)
+        reader.set_position(OFFSET_LOG_BLOCK_SIZE);
+        let log_block_size = reader
+            .read_u32::<LittleEndian>()
+            .expect("Failed to read log block size");
 
-        // Skip to log_block_size field (offset 0x18, 4 bytes)
-        rdr.set_position(24);
-        let log_block_size = rdr.read_u32::<LittleEndian>().unwrap();
+        // Read inodes per group (4 bytes at offset 0x28)
+        reader.set_position(OFFSET_INODES_PER_GROUP);
+        let inodes_per_group = reader
+            .read_u32::<LittleEndian>()
+            .expect("Failed to read inodes per group");
 
-        // Skip to inode_size field (offset 0x58, 2 bytes)
-        rdr.set_position(88);
-        let inode_size = rdr.read_u16::<LittleEndian>().unwrap();
+        // Read inode size (2 bytes at offset 0x58)
+        reader.set_position(OFFSET_INODE_SIZE);
+        let inode_size = reader
+            .read_u16::<LittleEndian>()
+            .expect("Failed to read inode size");
 
-        // Skip to volume name field (offset 0x78, 16 bytes)
-        rdr.set_position(120);
-        let mut name_buf = [0u8; 16];
-        rdr.read_exact(&mut name_buf).unwrap();
+        // Read volume name (16 bytes at offset 0x78)
+        reader.set_position(OFFSET_VOLUME_NAME);
+        let mut name_buffer = [0u8; VOLUME_NAME_LENGTH];
+        reader
+            .read_exact(&mut name_buffer)
+            .expect("Failed to read volume name");
 
-        // Convert volume name to string, removing null terminators
-        let volume_name = String::from_utf8_lossy(&name_buf)
+        // Convert volume name to UTF-8 string, removing null terminators
+        let volume_name = String::from_utf8_lossy(&name_buffer)
             .trim_end_matches('\0')
             .to_string();
 
@@ -63,6 +115,7 @@ impl Superblock {
             inodes_count,
             blocks_count,
             log_block_size,
+            inodes_per_group,
             inode_size,
             volume_name,
         }
@@ -71,15 +124,35 @@ impl Superblock {
     /// Calculate the actual block size in bytes
     ///
     /// # Returns
-    /// The block size in bytes (1024 * 2^log_block_size)
+    /// Block size in bytes, calculated as 1024 * 2^log_block_size
     ///
     /// # Examples
-    /// ```
-    /// // If log_block_size is 0, block size is 1024 bytes
-    /// // If log_block_size is 1, block size is 2048 bytes
-    /// // If log_block_size is 2, block size is 4096 bytes
+    /// ```rust
+    /// let superblock = Superblock::parse(&data);
+    /// match superblock.log_block_size {
+    ///     0 => assert_eq!(superblock.block_size(), 1024),  // 1KB
+    ///     1 => assert_eq!(superblock.block_size(), 2048),  // 2KB
+    ///     2 => assert_eq!(superblock.block_size(), 4096),  // 4KB
+    ///     _ => println!("Larger block size: {} bytes", superblock.block_size()),
+    /// }
     /// ```
     pub fn block_size(&self) -> u32 {
         1024 << self.log_block_size
+    }
+
+    /// Get a human-readable summary of the filesystem
+    ///
+    /// # Returns
+    /// A formatted string with key filesystem information
+    pub fn summary(&self) -> String {
+        format!(
+            "Filesystem '{}': {} inodes ({} per group), {} blocks ({} bytes each), inode size: {} bytes",
+            self.volume_name,
+            self.inodes_count,
+            self.inodes_per_group,
+            self.blocks_count,
+            self.block_size(),
+            self.inode_size
+        )
     }
 }

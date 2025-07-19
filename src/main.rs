@@ -1,15 +1,13 @@
-use std::fs::File;
-
-use ext4_journal_rust::image;
-use ext4_journal_rust::superblock;
+use ext4_journal_rust::FileSystem;
 
 fn main() -> std::io::Result<()> {
-    let mut file = File::open("ext4.img")?;
-    let buf = image::read_block(&mut file, 1024, 1024)?;
-    let sb = superblock::Superblock::parse(&buf);
+    let mut fs = FileSystem::open("ext4.img")?;
 
-    println!("{:#?}", sb);
-    println!("Block size: {} bytes", sb.block_size());
+    println!("{}", fs.superblock.summary());
+
+    let root_inode = fs.read_inode(2)?;
+    println!("\nRoot Inode:");
+    println!("{:#?}", root_inode);
 
     Ok(())
 }
