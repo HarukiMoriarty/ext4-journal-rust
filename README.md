@@ -19,5 +19,3 @@ Then run tests:
 $ cargo test
 ```
 
-## TODO:
-1. Inode block pointer offset is hardcoded (`0x3C` for 256-byte inodes). Be careful: this changes for 128-byte inodes (`0x28`).
