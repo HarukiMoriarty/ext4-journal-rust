@@ -17,9 +17,9 @@ use std::io::{Read, Seek, SeekFrom};
 /// * The file seek operation fails (e.g., invalid offset)
 /// * The file read operation fails (e.g., unexpected EOF, permission issues)
 /// * The file doesn't contain enough data to read the requested size
-pub(crate) fn read_block(file: &mut File, offset: u64, size: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_block(file: &mut File, offset: u64, size: u32) -> std::io::Result<Vec<u8>> {
     // Allocate buffer with the requested size
-    let mut buf = vec![0u8; size];
+    let mut buf = vec![0u8; size as usize];
 
     // Seek to the specified offset from the beginning of the file
     file.seek(SeekFrom::Start(offset))?;

@@ -41,6 +41,11 @@ impl FileSystem {
             superblock: sb,
         })
     }
+
+    pub fn read_file(&mut self, path: &str) -> std::io::Result<Vec<u8>> {
+        let inode = self.resolve_path(path)?;
+        self.read_file_from_inode(&inode)
+    }
 }
 
 impl std::fmt::Display for FileSystem {
@@ -203,12 +208,33 @@ impl FileSystem {
 
         self.read_inode(current_inode_num)
     }
+
+    fn read_file_from_inode(&mut self, inode: &Inode) -> std::io::Result<Vec<u8>> {
+        let mut content = Vec::new();
+        let block_size = self.superblock.block_size();
+
+        for block in &inode.extent_blocks {
+            let offset = block * block_size as u64;
+            let block_data = read_block(&mut self.device, offset, block_size)?;
+            content.extend_from_slice(&block_data);
+        }
+
+        content.truncate(inode.inode_size as usize);
+        Ok(content)
+    }
 }
 
 #[test]
 fn test_resolve_path() {
     let mut fs = FileSystem::open("ext4.img").expect("Failed to open image");
-    let inode = fs
+    let _ = fs
         .resolve_path("/home/zyu379/test_file.txt")
         .expect("Path not resolved");
+}
+
+#[test]
+fn test_read_test_file() {
+    let mut fs = FileSystem::open("ext4.img").unwrap();
+    let content = fs.read_file("/home/zyu379/test_file.txt").unwrap();
+    assert_eq!(String::from_utf8_lossy(&content), "hello from ext4 test\n");
 }
