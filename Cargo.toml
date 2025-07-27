@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
+name = "ext4fs"
 path = "src/lib.rs"
+
+[[bin]]
+name = "ext4fs"
+path = "src/main.rs"
 
 [dependencies]
 byteorder = "1.5"
+clap = { version = "4", features = ["derive"] }
