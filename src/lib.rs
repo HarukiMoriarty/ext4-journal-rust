@@ -159,8 +159,6 @@ impl FileSystem {
         let block_size = self.superblock.block_size() as usize;
         let mut entries = Vec::new();
 
-        println!("Reading inode: {}", inode_num);
-
         // Process each data block pointed to by the inode
         for &block in &inode.extent_blocks {
             // Skip unallocated blocks
@@ -188,8 +186,6 @@ impl FileSystem {
                 }
             }
         }
-
-        println!("entries: {:?}", entries);
 
         Ok(entries)
     }
