@@ -115,14 +115,30 @@ impl DirectoryEntry {
     pub(crate) fn is_socket(&self) -> bool {
         self.file_type == EXT4_FT_SOCK
     }
+
+    /// Returns a human-readable string describing the file type
+    fn file_type_str(&self) -> &'static str {
+        match self.file_type {
+            EXT4_FT_REG_FILE => "file",
+            EXT4_FT_DIR => "dir",
+            EXT4_FT_CHRDEV => "char device",
+            EXT4_FT_BLKDEV => "block device",
+            EXT4_FT_FIFO => "fifo",
+            EXT4_FT_SOCK => "socket",
+            EXT4_FT_SYMLINK => "symlink",
+            _ => "unknown",
+        }
+    }
 }
 
 impl std::fmt::Display for DirectoryEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "DirEntry{{ name: {}, inode: {}, type: {} }}",
-            self.name, self.inode, self.file_type
+            "{:<12} {:<6} {}",
+            self.file_type_str(),
+            self.inode,
+            self.name
         )
     }
 }

@@ -43,8 +43,21 @@ impl FileSystem {
     }
 
     pub fn read_file(&mut self, path: &str) -> std::io::Result<Vec<u8>> {
-        let inode = self.resolve_path(path)?;
+        let inode_num = self.resolve_path(path)?;
+        let inode = self.read_inode(inode_num)?;
         self.read_file_from_inode(&inode)
+    }
+
+    pub fn list_dir(&mut self, path: &str) -> std::io::Result<Vec<DirectoryEntry>> {
+        let inode_num = self.resolve_path(path)?;
+        let inode = self.read_inode(inode_num)?;
+        if !inode.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Not a directory",
+            ));
+        }
+        self.read_dir(inode_num)
     }
 }
 
@@ -181,13 +194,13 @@ impl FileSystem {
         Ok(entries)
     }
 
-    fn resolve_path(&mut self, path: &str) -> std::io::Result<Inode> {
+    fn resolve_path(&mut self, path: &str) -> std::io::Result<u32> {
         // Start at root inode (inode number 2)
         let mut current_inode_num = 2;
 
         // Handle root path directly
         if path == "/" {
-            return self.read_inode(current_inode_num);
+            return Ok(current_inode_num);
         }
 
         for component in path.split('/').filter(|s| !s.is_empty()) {
@@ -206,7 +219,7 @@ impl FileSystem {
             current_inode_num = next_entry.inode;
         }
 
-        self.read_inode(current_inode_num)
+        Ok(current_inode_num)
     }
 
     fn read_file_from_inode(&mut self, inode: &Inode) -> std::io::Result<Vec<u8>> {
@@ -227,9 +240,10 @@ impl FileSystem {
 #[test]
 fn test_resolve_path() {
     let mut fs = FileSystem::open("ext4.img").expect("Failed to open image");
-    let _ = fs
+    let inode_num = fs
         .resolve_path("/home/zyu379/test_file.txt")
         .expect("Path not resolved");
+    let _ = fs.read_inode(inode_num).expect("Failed to read inode");
 }
 
 #[test]

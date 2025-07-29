@@ -125,13 +125,6 @@ impl Inode {
             extents.push(extent);
         }
 
-        println!("Parsed inode:");
-        println!("  Mode: 0x{:04x}", inode_mode);
-        println!("  Size: {}", inode_size);
-        println!("  Extent header: {:?}", extent_header);
-        println!("  Extents: {:?}", extents);
-        println!("  Resolved physical blocks: {:?}", extent_blocks);
-
         Self {
             inode_mode,
             inode_size,
@@ -139,5 +132,9 @@ impl Inode {
             extent_header,
             extents,
         }
+    }
+
+    pub(crate) fn is_dir(&self) -> bool {
+        self.inode_mode & 0xF000 == 0x4000 // EXT4_S_IFDIR
     }
 }
